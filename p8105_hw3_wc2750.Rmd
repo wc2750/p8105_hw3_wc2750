@@ -73,7 +73,7 @@ instacart %>%
 ```
 
 Apple vs ice cream
-```{r}
+```{r message = FALSE}
 instacart %>%
   filter(product_name %in% c("Pink Lady Apples", "Coffee Ice Cream")) %>%
   group_by(product_name, order_dow) %>%
