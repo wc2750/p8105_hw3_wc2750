@@ -8,6 +8,7 @@ output: github_document
 ```{r setup, include=FALSE}
 library(tidyverse)
 library(readxl)
+library(patchwork)
 
 knitr::opts_chunk$set(
   fig.width = 6,
@@ -169,3 +170,92 @@ accel_df %>%
 ```
 
 The observed subject might sleep around 11:30PM and get up around 5AM. He has relatively higher amount of activity from 10AM to 12PM on Sunday and from 8PM to 10PM on Friday. For the rest of the time, his activity amount keeps stable.
+
+## Problem 3
+Load data
+```{r}
+library(p8105.datasets)
+data("ny_noaa")
+```
+
+### Part 1
+Clean ny_noaa dataset
+```{r}
+noaa_df =
+  ny_noaa %>%
+  # create separate variables for year, month, and day
+  separate(date, c("year", "month", "day"), convert = TRUE) %>%
+  # ensure observations for temperature, precipitation, and snowfall are given in reasonable units
+  mutate(
+    prcp = prcp / 10,
+    tmax = as.numeric(tmax),
+    tmax = tmax / 10,
+    tmin = as.numeric(tmin),
+    tmin = tmin / 10
+  )
+```
+
+Commonly observed values in snowfall
+```{r message = FALSE}
+noaa_df %>%
+  drop_na(snow) %>%
+  group_by(snow) %>%
+  summarize(snow_count = n()) %>%
+  mutate(snow_rank = min_rank(desc(snow_count))) %>%
+  filter(snow_rank < 4) %>%
+  arrange(snow_rank)
+```
+
+The top 3 common snowfalls are 0, 25, and 13. The large count of zero snowfall indicates there is no snowfall for most of the time.
+
+### Part 2
+Make a two-panel plot showing the average max temperature in January and in July in each station across years
+```{r message = FALSE, warning = FALSE}
+noaa_df %>%
+  filter(month == 1 | month == 7) %>%
+  group_by(id, year, month) %>%
+  summarize(mean_tmax = mean(tmax, na.rm = TRUE)) %>%
+  ggplot(aes(x = year, y = mean_tmax, color = id)) +
+  geom_point(size = .8) +
+  facet_grid(.~month, labeller = as_labeller(c(`1` = "January", `7` = "July"))) +
+  labs(y = "temperature (°C)", title = "Average max temperature in January and in July in each station across years", caption = "data accessed from the NOAA National Climatic Data Center, \n http://doi.org/10.7289/V5D21VHZ, on August 15, 2017") +
+  theme(legend.position = "none", plot.title = element_text(size = 12, hjust = 0.5), panel.spacing = unit(2, "lines"))
+```
+
+The average max temperature detected by each station across years in January ranges from -10 °C to 10 °C, which is lower than that in July that ranges from 20 °C to 35 °C. There are some outliers reflected on the plots. For example, the average max temperature detected by certain stations in January, 1982 and in July, 1988 are extremely low.
+
+### Part 3
+Make a plot showing tmax vs tmin for the full dataset
+```{r warning = FALSE}
+# tmax vs tmin for the full dataset
+tmax_vs_tmin_plot = 
+  noaa_df %>%
+  ggplot(aes(x = tmax, y = tmin)) + 
+  geom_hex() +
+  labs(x = "maximum temperature (°C)", y = "minimum temperature (°C)", title = "tmax vs tmin for the full dataset") +
+  theme(plot.title = element_text(size = 10, hjust = 0.5), legend.position = "right")
+```
+
+Make a plot showing the distribution of snowfall values greater than 0 and less than 100 separately by year
+```{r warning = FALSE}
+snowfall_plot =
+  noaa_df %>%
+  filter(snow>0 & snow<100) %>%
+  ggplot(aes(x = year, y = snow, group = year, color = year)) +
+  geom_violin(aes(fill = year), alpha = .5) +
+  stat_summary(fun = "median", color = "yellow", size = .1) +
+  labs(y = "snowfall (mm)", title = "Distribution of snowfall by year", caption = "data accessed from the NOAA National Climatic Data Center, \n http://doi.org/10.7289/V5D21VHZ, on August 15, 2017") +
+  theme(plot.title = element_text(size = 10, hjust = 0.5), legend.position = "none")
+```
+
+Make a two-panel plot combining the above two plots
+```{r warning = FALSE}
+# patchwork
+tmax_vs_tmin_plot + snowfall_plot
+```
+
+The noaa_df shows the weather data collected by the weather stations at New York State. This dataset includes `r nrow(noaa_df)` rows and `r ncol(noaa_df)` columns. The observation year ranges from `r min(noaa_df$year)` to `r max(noaa_df$year)`. 
+
+Within the years of observation, the precipitation ranges from `r min(noaa_df$prcp, na.rm = TRUE)`mm to `r max(noaa_df$prcp, na.rm = TRUE)`mm, the snowfall ranges from `r min(noaa_df$snow, na.rm = TRUE)`mm to `r max(noaa_df$snow, na.rm = TRUE)`mm, the snow depth ranges from `r min(noaa_df$snwd, na.rm = TRUE)`mm to `r max(noaa_df$snwd, na.rm = TRUE)`mm, the maximum temperature ranges from `r min(noaa_df$tmax, na.rm = TRUE)`°C to `r max(noaa_df$tmax, na.rm = TRUE)`°C, and the minimum temperature ranges from `r min(noaa_df$tmin, na.rm = TRUE)`°C to `r max(noaa_df$tmin, na.rm = TRUE)`°C.
+
+There are large number of missing data which may lead to inaccurate analysis. The precipitation variable has `r sum(is.na(noaa_df$prcp))` missing data. The snowfall has `r sum(is.na(noaa_df$snow))` missing data. The snow depth variable has `r sum(is.na(noaa_df$snwd))` missing data. The maximum temperature variable has `r sum(is.na(noaa_df$tmax))` missing data. The minimum temperature variable has `r sum(is.na(noaa_df$tmin))` missing data.
